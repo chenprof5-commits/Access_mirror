@@ -33,4 +33,6 @@ Voir les procédures de [Windows](docs/INSTALLATION_WINDOWS.md), [configuration 
 
 ## Données réelles et production
 
-Ne renseignez aucune vraie cible dans ce dépôt. Après fermeture complète de Codex, un administrateur exécute `scripts/configure-production.ps1`; le fichier privé sera `C:\ProgramData\AlphaAccess\private.env`. Le guide [CONFIGURATION_PRIVEE.md](docs/CONFIGURATION_PRIVEE.md) décrit les ACL et le démarrage. Le service doit rester derrière un frontal TLS et l’entreprise doit vérifier les droits d’usage et la compatibilité réelle avant l’ouverture. La préparation de configuration ne rend pas le site public d’origine inaccessible.
+Le mode local utilise SQLite et le site fictif. Pour le projet Netlify, le service utilise Netlify Server et PostgreSQL. Suivez [DEPLOIEMENT_NETLIFY.md](docs/DEPLOIEMENT_NETLIFY.md) : ajoutez les secrets dans les variables du site Netlify et définissez l’URL HTTPS de l’origine avant le premier déploiement. La migration PostgreSQL est dans `netlify/database/migrations/`.
+
+Les scripts dans `scripts/*production*.ps1` concernent uniquement un hébergement Windows autonome ; ne les utilisez pas pour Netlify. La passerelle ne rend pas l’adresse publique d’origine inaccessible. Vérifiez les droits d’usage et la compatibilité du site réel avant toute ouverture.
