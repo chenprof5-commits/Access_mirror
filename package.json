@@ -1,0 +1,26 @@
+{
+  "name": "alpha-access",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Passerelle d'accès ALPHA ACCESS avec mock local exclusivement",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "build": "tsc --noEmit",
+    "start": "node src/server.ts",
+    "db:migrate": "node src/cli.ts migrate",
+    "admin:create": "node src/cli.ts admin:create",
+    "admin:create:production": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/create-admin-production.ps1",
+    "test": "node tests/run.ts",
+    "test:e2e": "node tests/run.ts",
+    "check": "npm run build && npm test",
+    "mock": "node src/mock-origin.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}
