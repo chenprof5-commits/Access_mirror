@@ -16,7 +16,6 @@ const app=await import(pathToFileURL(path.join(root,'src','server.ts')).href);
 const {db,nowIso}=await import(pathToFileURL(path.join(root,'src','db.ts')).href);
 const listen=(server:any,port:number)=>new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
 const close=(server:any)=>new Promise<void>(resolve=>server.close(()=>resolve()));
-const cs=(r:Response)=>r.headers.getSetCookie().find(x=>x.startsWith('aa_csrf='))!.split(';')[0]!;
 try {
  await listen(mock.server,4100);await listen(app.server,18080);
  const random=crypto.randomBytes(32).toString('base64url');assert.match(random,/^[A-Za-z0-9_-]{43}$/);assert.equal(Buffer.from(random,'base64url').length,32);
@@ -27,12 +26,12 @@ try {
  const client=await db.prepare('INSERT INTO clients(reference,display_name,created_at) VALUES(?,?,?)').run('FICTIF-1','Client Démo',nowIso());
  const invitationToken=crypto.randomBytes(32).toString('base64url'), invitation=await db.prepare('INSERT INTO invitations(client_id,token_hash,created_at) VALUES(?,?,?)').run(client.lastInsertRowid,crypto.createHash('sha256').update(invitationToken).digest('hex'),nowIso());
  let intro=await fetch(`http://127.0.0.1:18080/i/${invitationToken}`,{redirect:'manual'});assert.equal(intro.status,200);assert.equal((await db.prepare('SELECT first_started_at FROM invitations WHERE id=?').get(invitation.lastInsertRowid) as any).first_started_at,null,'C03: GET ne démarre pas l’essai');
- const csrfCookie=cs(intro), csrf=(await intro.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
- const started=await fetch(`http://127.0.0.1:18080/i/${invitationToken}/start`,{method:'POST',redirect:'manual',headers:{Cookie:csrfCookie,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf})});assert.equal(started.status,303,'C04: démarrage explicite');
+ const csrf=(await intro.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
+ const started=await fetch(`http://127.0.0.1:18080/i/${invitationToken}/start`,{method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf})});assert.equal(started.status,303,'C04: démarrage explicite');
  let clientCookie=started.headers.getSetCookie().find(x=>x.startsWith('aa_client='))!.split(';')[0]!;
  const originalExpiry=(await db.prepare('SELECT trial_expires_at FROM invitations WHERE id=?').get(invitation.lastInsertRowid) as any).trial_expires_at;
- const secondIntro=await fetch(`http://127.0.0.1:18080/i/${invitationToken}`),secondCsrfCookie=cs(secondIntro),secondCsrf=(await secondIntro.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
- const secondStart=()=>fetch(`http://127.0.0.1:18080/i/${invitationToken}/start`,{method:'POST',redirect:'manual',headers:{Cookie:secondCsrfCookie,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:secondCsrf})});
+ const secondIntro=await fetch(`http://127.0.0.1:18080/i/${invitationToken}`),secondCsrf=(await secondIntro.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
+ const secondStart=()=>fetch(`http://127.0.0.1:18080/i/${invitationToken}/start`,{method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:secondCsrf})});
  assert.equal((await secondStart()).status,409,'un second navigateur ne reçoit pas un nouvel essai');
  await db.prepare('UPDATE client_sessions SET revoked_at=? WHERE invitation_id=?').run(nowIso(),invitation.lastInsertRowid);
  await db.prepare('UPDATE invitations SET bound_session_hash=NULL WHERE id=?').run(invitation.lastInsertRowid);
@@ -45,13 +44,13 @@ try {
  metrics=await(await fetch('http://127.0.0.1:4100/__mock/metrics')).json() as {requests:number};
  const expired=await fetch('http://127.0.0.1:18080/',{headers:{Cookie:clientCookie},redirect:'manual'});assert.equal(expired.status,303,'À l’échéance l’accès proxy est refusé');
  after=await(await fetch('http://127.0.0.1:4100/__mock/metrics')).json() as {requests:number};assert.equal(after.requests,metrics.requests+1,'Seul le sondage métrique atteint le mock après expiration');
- const paymentPage=await fetch('http://127.0.0.1:18080/paiement',{headers:{Cookie:clientCookie}}),paymentCsrfCookie=cs(paymentPage),paymentCsrf=(await paymentPage.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
+ const paymentPage=await fetch('http://127.0.0.1:18080/paiement',{headers:{Cookie:clientCookie}}),paymentCsrf=(await paymentPage.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
  const code='DEMO-'+crypto.randomBytes(24).toString('base64url'),codeHash=crypto.createHmac('sha256',process.env.ACTIVATION_HASH_SECRET!).update(code).digest('hex');
  await db.prepare('INSERT INTO activation_codes(invitation_id,code_hash,plan_duration_seconds,created_at) VALUES(?,?,?,?)').run(invitation.lastInsertRowid,codeHash,86400,nowIso());
  const otherClient=await db.prepare('INSERT INTO clients(reference,display_name,created_at) VALUES(?,?,?)').run('FICTIF-2','Autre client',nowIso()),otherToken=crypto.randomBytes(32).toString('base64url');
  const otherInvitation=await db.prepare('INSERT INTO invitations(client_id,token_hash,created_at,first_started_at,trial_expires_at,bound_session_hash) VALUES(?,?,?,?,?,?)').run(otherClient.lastInsertRowid,crypto.createHash('sha256').update(otherToken).digest('hex'),nowIso(),nowIso(),new Date(Date.now()+900000).toISOString(),crypto.createHash('sha256').update(otherToken).digest('hex'));
  await db.prepare('INSERT INTO client_sessions(invitation_id,token_hash,created_at,last_seen_at,expires_at) VALUES(?,?,?,?,?)').run(otherInvitation.lastInsertRowid,crypto.createHash('sha256').update(otherToken).digest('hex'),nowIso(),nowIso(),new Date(Date.now()+86400000).toISOString());
- const activation=(cookieValue:string,submitted:string)=>fetch('http://127.0.0.1:18080/api/client/activate',{method:'POST',redirect:'manual',headers:{Cookie:`${cookieValue}; ${paymentCsrfCookie}`,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:paymentCsrf,code:submitted})});
+ const activation=(cookieValue:string,submitted:string)=>fetch('http://127.0.0.1:18080/api/client/activate',{method:'POST',redirect:'manual',headers:{Cookie:cookieValue,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:paymentCsrf,code:submitted})});
  assert.equal((await activation(`aa_client=${otherToken}`,code)).status,400,'code d’une invitation inutilisable sur une autre invitation');
  assert.equal((await activation(clientCookie,code)).status,303,'activation manuelle liée à l’invitation réussit une fois');
  assert.equal((await fetch('http://127.0.0.1:18080/',{headers:{Cookie:clientCookie}})).status,200,'licence active prioritaire après la fin de l’essai');
@@ -59,8 +58,8 @@ try {
  assert.equal((await activation(clientCookie,'code-faux-invalide-000000000000')).status,429,'limitation des tentatives d’activation');
  const adminSalt=crypto.randomBytes(16).toString('hex'),adminHash=crypto.scryptSync('mot-de-passe-test-incorrect',adminSalt,64).toString('hex');
  await db.prepare('INSERT INTO admins(username,password_hash,created_at) VALUES(?,?,?)').run('test-admin',`${adminSalt}:${adminHash}`,nowIso());
- for(let i=0;i<5;i++){const loginPage=await fetch('http://127.0.0.1:18080/admin/login'),loginCookie=cs(loginPage),loginCsrf=(await loginPage.text()).match(/name="csrf" value="([^"]+)"/)![1]!;const attempt=await fetch('http://127.0.0.1:18080/admin/login',{method:'POST',redirect:'manual',headers:{Cookie:loginCookie,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:loginCsrf,username:'test-admin',password:'incorrect'})});assert.equal(attempt.status,200);}
- const finalLogin=await fetch('http://127.0.0.1:18080/admin/login'),finalCookie=cs(finalLogin),finalCsrf=(await finalLogin.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
- assert.equal((await fetch('http://127.0.0.1:18080/admin/login',{method:'POST',redirect:'manual',headers:{Cookie:finalCookie,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:finalCsrf,username:'test-admin',password:'incorrect'})})).status,429,'limitation des tentatives admin');
+ for(let i=0;i<5;i++){const loginPage=await fetch('http://127.0.0.1:18080/admin/login'),loginCsrf=(await loginPage.text()).match(/name="csrf" value="([^"]+)"/)![1]!;const attempt=await fetch('http://127.0.0.1:18080/admin/login',{method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:loginCsrf,username:'test-admin',password:'incorrect'})});assert.equal(attempt.status,200);}
+ const finalLogin=await fetch('http://127.0.0.1:18080/admin/login'),finalCsrf=(await finalLogin.text()).match(/name="csrf" value="([^"]+)"/)![1]!;
+ assert.equal((await fetch('http://127.0.0.1:18080/admin/login',{method:'POST',redirect:'manual',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:finalCsrf,username:'test-admin',password:'incorrect'})})).status,429,'limitation des tentatives admin');
  console.log('OK: refus pré-proxy, essai 900 s, appareils, activation liée/unique, licence prioritaire et limites de tentatives admin/client.');
 } finally {await close(app.server);await close(mock.server);await db.close();fs.rmSync(tmp,{recursive:true,force:true});}
