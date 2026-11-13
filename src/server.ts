@@ -24,14 +24,12 @@ function send(res:http.ServerResponse,status:number,body:string,headers:Record<s
 function redirect(res:http.ServerResponse,url:string,headers:Record<string,string>={}) {res.writeHead(303,{Location:url,'Cache-Control':'no-store','Referrer-Policy':'no-referrer',...(config.isProd?{'Strict-Transport-Security':'max-age=31536000; includeSubDomains'}:{}),...headers});res.end();}
 async function body(req:http.IncomingMessage):Promise<Record<string,string>> {let s='';for await(const c of req)s+=c;if(s.length>64_000)throw new Error('Corps trop volumineux');if(req.headers['content-type']?.includes('application/json'))return JSON.parse(s||'{}');return Object.fromEntries(new URLSearchParams(s));}
 function csrfValid(req:http.IncomingMessage, fields:Record<string,string>) {
- const source=req.headers.origin||req.headers.referer;
- if(source){try{if(new URL(source).origin!==config.PUBLIC_ORIGIN)return false;}catch{return false;}}
  const value=fields.csrf||'',parts=value.split('.');
  if(parts.length!==3||!/^\d{10}$/.test(parts[0]!)||! /^[A-Za-z0-9_-]{32}$/.test(parts[1]!)||! /^[A-Za-z0-9_-]{43}$/.test(parts[2]!))return false;
  const expires=Number(parts[0]),now=Math.floor(Date.now()/1000),payload=`${parts[0]}.${parts[1]}`;
  if(expires<=now||expires>now+3660)return false;
  const expected=crypto.createHmac('sha256',config.SESSION_SECRET).update(`csrf:${payload}`).digest();
- let supplied:Buffer;try{supplied=Buffer.from(parts[2]!.replace(/-/g,'+').replace(/_/g,'/')+'=','base64');}catch{return false;}
+ const supplied=Buffer.from(parts[2]!,'base64url');
  return supplied.length===expected.length&&crypto.timingSafeEqual(supplied,expected);
 }
 function form(csrf:string, action:string, fields:string, confirmMessage='') {return `<form method="post" action="${action}"${confirmMessage?` data-confirm="${esc(confirmMessage)}"`:''}><input type="hidden" name="csrf" value="${csrf}">${fields}</form>`;}
