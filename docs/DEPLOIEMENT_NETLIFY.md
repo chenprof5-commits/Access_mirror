@@ -12,7 +12,7 @@ Dans **Project configuration → Environment variables**, ajouter au contexte Pr
 - `PUBLIC_BASE_URL` : adresse publique ALPHA ACCESS, actuellement `https://passerellemirror.netlify.app`. Mettre à jour cette variable si tu ajoutes ensuite un domaine personnalisé.
 - `SESSION_SECRET` : secret aléatoire d’au moins 32 caractères.
 - `ACTIVATION_HASH_SECRET` : autre secret aléatoire d’au moins 32 caractères.
-- `ADMIN_BOOTSTRAP_SECRET` : secret aléatoire d’au moins 32 caractères, requis temporairement pour créer le premier administrateur. Supprime-le ensuite et redéploie.
+- `INITIAL_ADMIN_USERNAME` et `INITIAL_ADMIN_PASSWORD` : identifiant et mot de passe temporaire du premier administrateur. Le mot de passe doit faire au moins 14 caractères. Ils ne créent le compte que si la table des administrateurs est vide.
 - `PAYMENT_CONTACT_URL` : lien HTTPS de contact/paiement.
 - `PAYMENT_CONTACT_LABEL` : texte affiché comme lien d’aide, par exemple `Contacter notre équipe`.
 - `BUSINESS_NAME` : nom affiché aux clients.
@@ -22,7 +22,7 @@ Netlify fournit `NETLIFY_DB_URL` automatiquement après la création de la base.
 
 Les valeurs sensibles doivent être ajoutées dans le tableau de bord Netlify, pas dans `.env`, `netlify.toml` ou Git. Après les avoir ajoutées, vérifier la portée **Netlify Server** et le contexte **Production**.
 
-Après déploiement, ouvre `/admin/bootstrap` et utilise `ADMIN_BOOTSTRAP_SECRET` pour créer le premier compte. Cette page se désactive dès qu’un compte administrateur existe. Supprime ensuite la variable Netlify et redéploie. La connexion normale se fait sur `/admin/login`.
+Pour créer le premier administrateur, définis temporairement `INITIAL_ADMIN_USERNAME` et `INITIAL_ADMIN_PASSWORD`, puis déploie. Le serveur stocke uniquement le hash du mot de passe et ne crée le compte que si aucun administrateur n’existe. Après le premier déploiement réussi, supprime ces deux variables et redéploie. Connecte-toi sur `/admin/login`, puis utilise « Changer mon mot de passe » dans le tableau de bord pour remplacer le mot de passe temporaire.
 
 ## Mise en ligne
 
