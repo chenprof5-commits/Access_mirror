@@ -88,6 +88,10 @@ class DatabaseFacade {
     } finally { client.release(); }
   }
 
+  async lockAdminBootstrap() {
+    if (pgPool) await (transactionContext.getStore() ?? pgPool).query('LOCK TABLE admins IN EXCLUSIVE MODE');
+  }
+
   close() {
     if (pgPool) return pgPool.end();
     sqliteDb!.close();

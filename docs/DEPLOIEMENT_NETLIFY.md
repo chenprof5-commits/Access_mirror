@@ -12,6 +12,7 @@ Dans **Project configuration → Environment variables**, ajouter au contexte Pr
 - `PUBLIC_BASE_URL` : adresse publique ALPHA ACCESS, actuellement `https://passerellemirror.netlify.app`. Mettre à jour cette variable si tu ajoutes ensuite un domaine personnalisé.
 - `SESSION_SECRET` : secret aléatoire d’au moins 32 caractères.
 - `ACTIVATION_HASH_SECRET` : autre secret aléatoire d’au moins 32 caractères.
+- `ADMIN_BOOTSTRAP_SECRET` : secret aléatoire d’au moins 32 caractères, requis temporairement pour créer le premier administrateur. Supprime-le ensuite et redéploie.
 - `PAYMENT_CONTACT_URL` : lien HTTPS de contact/paiement.
 - `PAYMENT_CONTACT_LABEL` : texte affiché comme lien d’aide, par exemple `Contacter notre équipe`.
 - `BUSINESS_NAME` : nom affiché aux clients.
@@ -20,6 +21,8 @@ Dans **Project configuration → Environment variables**, ajouter au contexte Pr
 Netlify fournit `NETLIFY_DB_URL` automatiquement après la création de la base. Ne copiez pas ce secret dans le dépôt. `ALPHA_PRIVATE_CONFIG_PATH` concerne uniquement le serveur Windows et ne doit pas être défini sur Netlify.
 
 Les valeurs sensibles doivent être ajoutées dans le tableau de bord Netlify, pas dans `.env`, `netlify.toml` ou Git. Après les avoir ajoutées, vérifier la portée **Netlify Server** et le contexte **Production**.
+
+Après déploiement, ouvre `/admin/bootstrap` et utilise `ADMIN_BOOTSTRAP_SECRET` pour créer le premier compte. Cette page se désactive dès qu’un compte administrateur existe. Supprime ensuite la variable Netlify et redéploie. La connexion normale se fait sur `/admin/login`.
 
 ## Mise en ligne
 

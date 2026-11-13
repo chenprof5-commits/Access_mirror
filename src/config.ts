@@ -32,12 +32,14 @@ const cfg={
  PUBLIC_BASE_URL:env.PUBLIC_BASE_URL||env.URL||'http://127.0.0.1:8080',ORIGIN_URL:env.ORIGIN_URL||'http://127.0.0.1:4100',
  TRIAL_SECONDS:Number(env.TRIAL_SECONDS||900),DATABASE_PATH:env.DATABASE_PATH||'./data/alpha-access.sqlite',
  SESSION_SECRET:env.SESSION_SECRET||'',ACTIVATION_HASH_SECRET:env.ACTIVATION_HASH_SECRET||'',
+ ADMIN_BOOTSTRAP_SECRET:env.ADMIN_BOOTSTRAP_SECRET||'',
  BUSINESS_NAME:env.BUSINESS_NAME||'ALPHA ACCESS',PAYMENT_CONTACT_LABEL:env.PAYMENT_CONTACT_LABEL||'Contacter notre équipe',
  PAYMENT_CONTACT_URL:env.PAYMENT_CONTACT_URL||'https://example.invalid/contact',
 };
 if(!['development','test','production'].includes(cfg.NODE_ENV))throw new Error('NODE_ENV invalide.');
 if(!Number.isInteger(cfg.PORT)||cfg.PORT<1||cfg.PORT>65535||cfg.TRIAL_SECONDS!==900)throw new Error('PORT/TRIAL_SECONDS invalide (essai fixé à 900 secondes).');
 for(const k of ['SESSION_SECRET','ACTIVATION_HASH_SECRET'] as const)if(cfg[k].length<32||/REMPLACER|EXAMPLE/i.test(cfg[k]))throw new Error(`${k} doit être remplacé par un secret aléatoire d’au moins 32 caractères.`);
+if(cfg.ADMIN_BOOTSTRAP_SECRET&&cfg.ADMIN_BOOTSTRAP_SECRET.length<32)throw new Error('ADMIN_BOOTSTRAP_SECRET doit contenir au moins 32 caractères.');
 for(const k of ['PUBLIC_BASE_URL','ORIGIN_URL','PAYMENT_CONTACT_URL'] as const)if(!URL.canParse(cfg[k]))throw new Error(`${k} invalide.`);
 const origin=new URL(cfg.ORIGIN_URL),publicBase=new URL(cfg.PUBLIC_BASE_URL);
 const paymentContact=new URL(cfg.PAYMENT_CONTACT_URL);

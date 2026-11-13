@@ -28,6 +28,7 @@ async function isRateLimited(scope:string){const row=await db.prepare('SELECT bl
 async function rateFailure(scope:string,maximum:number,windowSeconds:number){const key=limitKey(scope),now=Date.now(),row=await db.prepare('SELECT attempts,window_started_at FROM rate_limits WHERE key_hash=?').get(key) as any;let attempts=1,started=now;if(row&&now-Date.parse(row.window_started_at)<windowSeconds*1000){attempts=Number(row.attempts)+1;started=Date.parse(row.window_started_at);}const blocked=attempts>=maximum?new Date(started+windowSeconds*1000).toISOString():null;await db.prepare('INSERT INTO rate_limits(key_hash,attempts,window_started_at,blocked_until) VALUES(?,?,?,?) ON CONFLICT(key_hash) DO UPDATE SET attempts=excluded.attempts,window_started_at=excluded.window_started_at,blocked_until=excluded.blocked_until').run(key,attempts,new Date(started).toISOString(),blocked);return !!blocked;}
 async function clearRateLimit(scope:string){await db.prepare('DELETE FROM rate_limits WHERE key_hash=?').run(limitKey(scope));}
 function adminLogin(res:http.ServerResponse,csrf:string,message='') {send(res,200,page('Connexion administrateur',`<h1>Administration</h1><div class="card">${message}${form(csrf,'/admin/login','<label>Identifiant</label><input name="username" required autocomplete="username"><label>Mot de passe</label><input type="password" name="password" required autocomplete="current-password"><p><button>Se connecter</button></p>')}</div>`));}
+function adminBootstrap(res:http.ServerResponse,csrf:string,message='') {send(res,200,page('Créer le premier administrateur',`<h1>Initialisation de l’administration</h1><div class="card"><p>Cette page ne fonctionne que tant qu’aucun administrateur n’existe. Après création, supprimez <code>ADMIN_BOOTSTRAP_SECRET</code> des variables Netlify.</p>${message}${form(csrf,'/admin/bootstrap','<label>Identifiant administrateur</label><input name="username" required minlength="3" maxlength="64" autocomplete="username"><label>Mot de passe administrateur (14 caractères minimum)</label><input type="password" name="password" required minlength="14" autocomplete="new-password"><label>Secret initialisation</label><input type="password" name="bootstrap_secret" required autocomplete="off"><p><button>Créer le compte administrateur</button></p>')}</div>`));}
 async function adminHome(res:http.ServerResponse,csrf:string,username:string) {
  const rows=await db.prepare(`SELECT i.id,i.created_at,i.first_started_at,i.trial_expires_at,i.revoked_at,c.reference,c.display_name,(SELECT expires_at FROM licenses l WHERE l.invitation_id=i.id AND l.revoked_at IS NULL ORDER BY id DESC LIMIT 1) license_until,(SELECT is_permanent FROM activation_codes ac JOIN licenses l ON l.activation_code_id=ac.id WHERE l.invitation_id=i.id AND l.revoked_at IS NULL ORDER BY l.id DESC LIMIT 1) license_permanent FROM invitations i JOIN clients c ON c.id=i.client_id ORDER BY i.id DESC LIMIT 200`).all() as any[];
  const table=rows.map(r=>{
@@ -44,6 +45,22 @@ export const server=http.createServer(async(req,res)=>{
   if(config.isProd&&String(req.headers.host||'').toLowerCase()!==new URL(config.PUBLIC_BASE_URL).host.toLowerCase())return send(res,421,page('Hôte inconnu','Nom d’hôte non autorisé.'));
   const u=new URL(requestTarget,config.PUBLIC_BASE_URL), p=u.pathname;
   if(p==='/healthz'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({ok:true}));}
+   if((p==='/admin/bootstrap'&&req.method==='GET')||(p==='/admin/bootstrap'&&req.method==='POST')){
+    if(!config.ADMIN_BOOTSTRAP_SECRET)return send(res,404,page('Introuvable','Initialisation non activée.'));
+    const existing=await db.prepare('SELECT COUNT(*) AS total FROM admins').get() as any;
+    if(Number(existing?.total)>0)return send(res,404,page('Initialisation terminée','Un administrateur existe déjà.'));
+    if(req.method==='GET')return adminBootstrap(res,setCsrf(res));
+    const fields=await body(req);if(!csrfValid(req,fields))return send(res,403,page('Erreur','Jeton de formulaire invalide.'));
+    const scope='admin-bootstrap';if(await isRateLimited(scope))return send(res,429,page('Initialisation verrouillée','Trop de tentatives. Réessayez dans 15 minutes.'));
+    const submitted=Buffer.from(fields.bootstrap_secret||''),expected=Buffer.from(config.ADMIN_BOOTSTRAP_SECRET);
+    if(submitted.length!==expected.length||!crypto.timingSafeEqual(submitted,expected)){await rateFailure(scope,5,900);return adminBootstrap(res,setCsrf(res),'<p>Secret incorrect.</p>');}
+    const username=(fields.username||'').trim(),password=fields.password||'';
+    if(!/^[A-Za-z0-9_.-]{3,64}$/.test(username)||password.length<14)return adminBootstrap(res,setCsrf(res),'<p>Identifiant ou mot de passe non conforme.</p>');
+    const salt=crypto.randomBytes(16).toString('hex'),digest=crypto.scryptSync(password,salt,64).toString('hex');
+    try{await db.transaction(async()=>{await db.lockAdminBootstrap();const count=await db.prepare('SELECT COUNT(*) AS total FROM admins').get() as any;if(Number(count?.total)>0)throw new Error('bootstrap_complete');await db.prepare('INSERT INTO admins(username,password_hash,created_at) VALUES(?,?,?)').run(username,`${salt}:${digest}`,nowIso());await audit('system','netlify-bootstrap','initial_admin_created','admin',username);});}
+    catch(e){if((e as Error).message==='bootstrap_complete')return send(res,404,page('Initialisation terminée','Un administrateur existe déjà.'));return adminBootstrap(res,setCsrf(res),'<p>Création impossible. Vérifiez l’identifiant puis réessayez.</p>');}
+    await clearRateLimit(scope);return send(res,200,page('Compte créé',`<h1>Compte administrateur créé</h1><p>Connectez-vous avec vos identifiants, puis supprimez la variable <code>ADMIN_BOOTSTRAP_SECRET</code> dans Netlify et redéployez.</p><a class="btn" href="/admin/login">Ouvrir la connexion</a>`));
+   }
   if(p==='/admin/login'&&req.method==='GET'){return adminLogin(res,setCsrf(res));}
   if(p==='/admin/login'&&req.method==='POST') {
    const f=await body(req);if(!csrfValid(req,f))return send(res,403,page('Erreur','Jeton de formulaire invalide.'));
