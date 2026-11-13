@@ -39,6 +39,9 @@ try {
  clientCookie=rebound.headers.getSetCookie().find(x=>x.startsWith('aa_client='))!.split(';')[0]!;
  assert.equal((await db.prepare('SELECT trial_expires_at FROM invitations WHERE id=?').get(invitation.lastInsertRowid) as any).trial_expires_at,originalExpiry,'réinitialisation ne prolonge pas l’essai');
  const proxied=await fetch('http://127.0.0.1:18080/',{headers:{Cookie:clientCookie}});assert.equal(proxied.status,200);assert.match(await proxied.text(),/Site fictif/);
+ let proxiedHeaders=await(await fetch('http://127.0.0.1:4100/__mock/metrics')).json() as {lastOrigin:string|null,lastReferer:string|null};assert.equal(proxiedHeaders.lastOrigin,null,'une navigation GET ne doit pas inventer un Origin vers le site cible');
+ const proxiedPost=await fetch('http://127.0.0.1:18080/submit',{method:'POST',headers:{Cookie:clientCookie,Origin:'http://127.0.0.1:18080',Referer:'http://127.0.0.1:18080/form-page','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({demo:'test'})});assert.equal(proxiedPost.status,200);
+ proxiedHeaders=await(await fetch('http://127.0.0.1:4100/__mock/metrics')).json() as {lastOrigin:string|null,lastReferer:string|null};assert.equal(proxiedHeaders.lastOrigin,'http://127.0.0.1:4100','Origin same-site réécrit vers l’origine configurée');assert.equal(proxiedHeaders.lastReferer,'http://127.0.0.1:4100/form-page','Referer same-site réécrit vers l’origine configurée');
  const session=await db.prepare('SELECT invitation_id FROM client_sessions WHERE invitation_id=?').get(invitation.lastInsertRowid);assert.ok(session);
  await db.prepare('UPDATE invitations SET trial_expires_at=? WHERE id=?').run('2000-01-01T00:00:00.000Z',invitation.lastInsertRowid);
  metrics=await(await fetch('http://127.0.0.1:4100/__mock/metrics')).json() as {requests:number};

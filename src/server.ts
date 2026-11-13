@@ -176,7 +176,12 @@ if(p==='/admin/logout'){const t=cookieMap(req.headers.cookie).aa_admin;await db.
   for(const name of Object.keys(headers))if(name.startsWith('x-forwarded-')||name==='x-real-ip')delete headers[name];
   const incomingCookies=cookieMap(req.headers.cookie);for(const name of ['aa_client','aa_admin','aa_csrf'])delete incomingCookies[name];
   if(Object.keys(incomingCookies).length)headers.cookie=Object.entries(incomingCookies).map(([k,v])=>`${k}=${v}`).join('; ');else delete headers.cookie;
-  headers.origin=new URL(config.PUBLIC_BASE_URL).origin;headers.referer=new URL(req.url||'/',config.PUBLIC_BASE_URL).toString();
+  // The upstream must see its own origin on same-site browser requests.
+  // Do not invent an Origin header for normal top-level GET navigation.
+  if(req.headers.origin){try{if(new URL(req.headers.origin).origin===config.PUBLIC_ORIGIN)headers.origin=fixedOrigin.origin;else delete headers.origin;}catch{delete headers.origin;}}
+  else delete headers.origin;
+  if(req.headers.referer){try{const ref=new URL(req.headers.referer);if(ref.origin===config.PUBLIC_ORIGIN)headers.referer=new URL(`${ref.pathname}${ref.search}`,fixedOrigin).toString();else delete headers.referer;}catch{delete headers.referer;}}
+  else delete headers.referer;
   const contentLength=Number(req.headers['content-length']||0);if(contentLength>100*1024*1024)return send(res,413,page('Requête trop volumineuse','La taille maximale de cette passerelle est de 100 Mo.'));
   let tooLarge=false;const upstream=transport.request(target,{method:req.method,headers,rejectUnauthorized:true},up=>{const outHeaders:{[key:string]:any}={...up.headers};for(const name of hopByHop)delete outHeaders[name];if(outHeaders.location){try{const loc=new URL(String(outHeaders.location),target);if(loc.origin===target.origin)outHeaders.location=loc.pathname+loc.search+loc.hash;}catch{}}
    if(outHeaders['set-cookie']){const safeCookies=(outHeaders['set-cookie'] as string[]).filter(v=>!['aa_client','aa_admin','aa_csrf'].includes(v.split('=',1)[0]!.trim().toLowerCase())).map(proxyCookie);if(safeCookies.length)outHeaders['set-cookie']=safeCookies;else delete outHeaders['set-cookie'];}
