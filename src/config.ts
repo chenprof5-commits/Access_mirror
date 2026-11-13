@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const isNetlify=process.env.NETLIFY==='true';
+// Netlify Server runtime may not expose the build-only NETLIFY flag. The managed
+// database connection is injected at runtime and is a reliable platform signal.
+const isNetlify=process.env.NETLIFY==='true'||Boolean(process.env.NETLIFY_DB_URL);
 const isProduction=process.env.NODE_ENV==='production'||(isNetlify&&process.env.CONTEXT==='production');
 const externalConfig=process.env.ALPHA_PRIVATE_CONFIG_PATH;
 if(isProduction&&!isNetlify&&!externalConfig)throw new Error('Production exige ALPHA_PRIVATE_CONFIG_PATH défini par le service.');

@@ -9,6 +9,7 @@ Le projet Netlify est `passerellemirror`. Le serveur est déclaré dans `netlify
 Dans **Project configuration → Environment variables**, ajouter au contexte Production, avec la portée **Netlify Server** :
 
 - `ORIGIN_URL` : URL HTTPS complète du site que la passerelle doit protéger. Il s’agit de l’adresse d’origine du site, pas de son entrée DNS.
+- `PUBLIC_BASE_URL` : adresse publique ALPHA ACCESS, actuellement `https://passerellemirror.netlify.app`. Mettre à jour cette variable si tu ajoutes ensuite un domaine personnalisé.
 - `SESSION_SECRET` : secret aléatoire d’au moins 32 caractères.
 - `ACTIVATION_HASH_SECRET` : autre secret aléatoire d’au moins 32 caractères.
 - `PAYMENT_CONTACT_URL` : lien HTTPS de contact/paiement.
@@ -16,7 +17,7 @@ Dans **Project configuration → Environment variables**, ajouter au contexte Pr
 - `BUSINESS_NAME` : nom affiché aux clients.
 - `TRIAL_SECONDS` : garder la valeur `900`.
 
-`PUBLIC_BASE_URL` peut être laissé vide si Netlify fournit `URL`; pour le site actuel, l’adresse publiée est `https://passerellemirror.netlify.app`. Netlify fournit `NETLIFY_DB_URL` automatiquement après la création de la base. Ne copiez pas ce secret dans le dépôt.
+Netlify fournit `NETLIFY_DB_URL` automatiquement après la création de la base. Ne copiez pas ce secret dans le dépôt. `ALPHA_PRIVATE_CONFIG_PATH` concerne uniquement le serveur Windows et ne doit pas être défini sur Netlify.
 
 Les valeurs sensibles doivent être ajoutées dans le tableau de bord Netlify, pas dans `.env`, `netlify.toml` ou Git. Après les avoir ajoutées, vérifier la portée **Netlify Server** et le contexte **Production**.
 
